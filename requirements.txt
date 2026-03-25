@@ -1,0 +1,31 @@
+# AI Interview Coach - Dependencies
+
+# Web Framework
+fastapi>=0.100.0
+uvicorn>=0.22.0
+streamlit>=1.30.0
+requests>=2.31.0
+
+# LangChain & LLM
+langchain>=0.1.0
+langchain-ollama>=0.0.1
+langchain-chroma>=0.1.0
+langchain-core>=0.1.0
+
+# Vector DB
+chromadb>=0.4.0
+
+# MCP Server
+mcp>=0.1.0
+
+# Voice AI
+gTTS>=2.3.0                      # Google Text-to-Speech
+SpeechRecognition>=3.10.0        # Speech-to-Text
+audio-recorder-streamlit>=0.0.8  # Audio recording in Streamlit
+PyAudio>=0.2.13                  # Audio processing (required by SpeechRecognition)
+
+# Optional: Whisper for better accuracy (uncomment if needed)
+# openai-whisper>=20230918
+
+# Utilities
+pydantic>=2.0.0
