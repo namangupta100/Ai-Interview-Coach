@@ -3,8 +3,11 @@ import warnings
 warnings.filterwarnings("ignore", message="Core Pydantic V1 functionality")
 
 from mcp.server.fastmcp import FastMCP
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_chroma import Chroma
+
+import engine
+from embeddings import LocalEmbeddings
+from engine import get_llm
 print("✅ Imports successful!")
 
 
@@ -21,12 +24,12 @@ print("✅ MCP initialized!")
 # =========================
 # PATH
 # =========================
-DB_PATH = "vectordb"
+DB_PATH = engine.DB_PATH
 print("✅ Paths set!")
 # =========================
 # EMBEDDINGS + VECTOR DB
 # =========================
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+embeddings = LocalEmbeddings()
 print("✅ Embeddings initialized!")
 
 vectorstore = Chroma(
@@ -37,12 +40,6 @@ print("✅ Vector DB initialized!")
 
 retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 print("✅ Retriever initialized!")
-
-# =========================
-# LLM
-# =========================
-llm = OllamaLLM(model="llama3")
-print("✅ LLM initialized!")
 # =========================
 # TOOL 1: RAG Q&A
 # =========================
@@ -63,7 +60,7 @@ Question:
 {question}
 """
     print("✅ Prompt created!")
-    return llm.invoke(prompt)
+    return str(get_llm().invoke(prompt).content)
 
 # =========================
 # TOOL 2: RAG Interview Question
@@ -91,7 +88,7 @@ Give:
 - Correct answer
 """
 
-    return llm.invoke(prompt)
+    return str(get_llm().invoke(prompt).content)
 
 # =========================
 # RUN SERVER

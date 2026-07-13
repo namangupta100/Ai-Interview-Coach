@@ -1,38 +1,50 @@
-from langchain_community.document_loaders import CSVLoader
-from langchain_ollama import OllamaEmbeddings
-from langchain_chroma import Chroma
+"""Builds the Chroma vector DB from data/dataset.csv.
 
-DATA_PATH = "data/dataset.csv"
-DB_PATH = "vectordb"
+Importable (engine.py builds the index on first boot if it's missing) and
+runnable directly:
+    python rag.py
+"""
 
-loader = CSVLoader(
-    file_path=DATA_PATH,
-    encoding="latin-1"
-)
+import os
 
 import pandas as pd
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-df = pd.read_csv("data/dataset.csv", encoding="latin-1")
+from embeddings import LocalEmbeddings
 
-documents = []
+DATA_PATH = "data/dataset.csv"
 
-for _, row in df.iterrows():
-    documents.append(
+# Named for the embedding model that built it. The old `vectordb/` was built with
+# Ollama's 768-dim nomic-embed-text; this model emits 384 dims, and querying the
+# old index with the new embedder is a dimension-mismatch error. Separate paths
+# keep the two from ever being confused.
+DB_PATH = os.getenv("VECTORDB_PATH", "vectordb_minilm")
+
+
+def build_index(db_path: str = DB_PATH) -> int:
+    """Embed every Q&A row into a fresh Chroma index. Returns the document count."""
+    df = pd.read_csv(DATA_PATH, encoding="latin-1")
+
+    documents = [
         Document(
             page_content=f"Question: {row['Question']} Answer: {row['Answer']}",
             metadata={
                 "category": row["Category"],
-                "difficulty": str(row["Difficulty"]).lower()
-            }
+                "difficulty": str(row["Difficulty"]).lower(),
+            },
         )
+        for _, row in df.iterrows()
+    ]
+
+    Chroma.from_documents(
+        documents=documents,
+        embedding=LocalEmbeddings(),
+        persist_directory=db_path,
     )
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    return len(documents)
 
-vectorstore = Chroma.from_documents(
-    documents=documents,
-    embedding=embeddings,
-    persist_directory=DB_PATH
-)
 
-print("✅ Vector DB created successfully!")
+if __name__ == "__main__":
+    count = build_index()
+    print(f"✅ Vector DB created at {DB_PATH} with {count} documents.")

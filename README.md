@@ -1,3 +1,14 @@
+---
+title: AI Interview Coach
+emoji: 🤖
+colorFrom: indigo
+colorTo: purple
+sdk: streamlit
+sdk_version: 1.59.2
+app_file: frontend.py
+pinned: false
+---
+
 <div align="center">
 
 # 🤖 AI Interview Coach
@@ -56,14 +67,14 @@ AI Interview Coach is an intelligent mock interview platform that helps you prep
 │                   FastAPI (REST)                            │
 ├─────────────────────────────────────────────────────────────┤
 │                     AI & ML Layer                           │
-│  LangChain  │  Ollama (LLM)  │  ChromaDB  │  Voice AI      │
+│  LangChain  │  Claude (LLM)  │  ChromaDB  │  Voice AI      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Backend:** FastAPI
+- **Backend:** FastAPI (optional — the Streamlit app calls the engine directly)
 - **Frontend:** Streamlit
-- **LLM:** Ollama (Llama 3)
-- **Embeddings:** nomic-embed-text
+- **LLM:** Claude (`claude-opus-4-8`) via `langchain-anthropic`
+- **Embeddings:** local ONNX all-MiniLM-L6-v2, bundled with ChromaDB (no API key)
 - **Vector DB:** ChromaDB
 - **Voice AI:** gTTS + SpeechRecognition
 
@@ -73,9 +84,11 @@ AI Interview Coach is an intelligent mock interview platform that helps you prep
 
 ```
 Ai-Interview-Coach/
-├── app.py              # FastAPI backend server
-├── frontend.py         # Streamlit UI application
-├── rag.py              # RAG setup & vector DB initialization
+├── frontend.py         # Streamlit UI — the app entrypoint
+├── engine.py           # Interview logic: questions, RAG lookup, Claude scoring
+├── embeddings.py       # Local ONNX embeddings (no API key needed)
+├── app.py              # Optional FastAPI wrapper over engine.py
+├── rag.py              # Builds the vector DB from data/dataset.csv
 ├── voice_ai.py         # Text-to-Speech & Speech-to-Text module
 ├── mcp_server.py       # MCP server for AI assistant integration
 ├── clean_data.py       # Data preprocessing utilities
@@ -92,13 +105,13 @@ Ai-Interview-Coach/
 
 Before you begin, ensure you have:
 
-- **Python 3.10+** installed
-- **Ollama** installed and running ([Install Ollama](https://ollama.ai))
-- **Required Ollama models:**
+- **Python 3.11** installed
+- An **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com)), exported as:
   ```bash
-  ollama pull llama3
-  ollama pull nomic-embed-text
+  export ANTHROPIC_API_KEY=sk-ant-...
   ```
+
+Embeddings run locally (ChromaDB's bundled ONNX model), so they need no key and no GPU.
 
 ### System Dependencies (for Voice AI)
 
@@ -141,7 +154,7 @@ cd Ai-Interview-Coach
 ### 2. Create Virtual Environment
 
 ```bash
-python -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate    # macOS/Linux
 # OR
 .\venv\Scripts\activate     # Windows
@@ -153,41 +166,52 @@ source venv/bin/activate    # macOS/Linux
 pip install -r requirements.txt
 ```
 
-### 4. Initialize Vector Database
+### 4. Set Your API Key
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### 5. Build the Vector Database (optional)
 
 ```bash
 python rag.py
 ```
 
-> ✅ You should see: `Vector DB created successfully!`
+> The app builds this automatically on first use if it's missing, so this step is
+> only to get the wait out of the way up front. The first build downloads the
+> local embedding model (~83MB), so give it a minute.
 
 ---
 
 ## ⚡ Quick Start
 
-### Step 1: Start Ollama
-
-Make sure Ollama is running:
-
 ```bash
-ollama serve
+streamlit run frontend.py
 ```
 
-### Step 2: Start the Backend Server
+> Opens at `http://localhost:8501`. That's the whole app — the Streamlit UI calls
+> `engine.py` in-process, so there's no separate backend to start.
+
+Only if you want the REST API as well:
 
 ```bash
 uvicorn app:app --reload --port 8000
 ```
 
-> Backend will be available at `http://127.0.0.1:8000`
+---
 
-### Step 3: Start the Frontend (New Terminal)
+## ☁️ Deploying to Hugging Face Spaces
 
-```bash
-streamlit run frontend.py
-```
+1. Create a new Space → SDK **Streamlit**.
+2. Push this repo to the Space (the YAML header in this README configures it, and
+   sets `app_file: frontend.py`).
+3. In **Settings → Variables and secrets**, add a secret `ANTHROPIC_API_KEY`.
 
-> Frontend will open automatically at `http://localhost:8501`
+The vector index is **not** committed — the app builds it from `data/dataset.csv`
+on first use if it's missing, so the Space is self-sufficient. Expect the first
+interview to take an extra minute while it downloads the embedding model (~83MB)
+and embeds the dataset. Every later run reuses the index.
 
 ---
 

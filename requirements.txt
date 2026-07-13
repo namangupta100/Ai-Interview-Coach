@@ -4,28 +4,28 @@
 fastapi>=0.100.0
 uvicorn>=0.22.0
 streamlit>=1.30.0
-requests>=2.31.0
 
 # LangChain & LLM
 langchain>=0.1.0
-langchain-ollama>=0.0.1
+langchain-anthropic>=0.3.0       # Claude (set ANTHROPIC_API_KEY)
 langchain-chroma>=0.1.0
 langchain-core>=0.1.0
 
-# Vector DB
+# Vector DB — also supplies the local ONNX embedding model (see embeddings.py)
 chromadb>=0.4.0
+onnxruntime>=1.16.0
+
+# Data
+pandas>=2.0.0
 
 # MCP Server
 mcp>=0.1.0
 
 # Voice AI
-gTTS>=2.3.0                      # Google Text-to-Speech
-SpeechRecognition>=3.10.0        # Speech-to-Text
-audio-recorder-streamlit>=0.0.8  # Audio recording in Streamlit
-PyAudio>=0.2.13                  # Audio processing (required by SpeechRecognition)
-
-# Optional: Whisper for better accuracy (uncomment if needed)
-# openai-whisper>=20230918
+gTTS>=2.3.0                      # Text-to-Speech
+SpeechRecognition>=3.10.0        # Speech-to-Text (file-based; no PyAudio needed)
+streamlit-mic-recorder>=0.0.8    # Browser-side mic capture
 
 # Utilities
 pydantic>=2.0.0
+python-dotenv>=1.0.0             # loads .env for local dev
