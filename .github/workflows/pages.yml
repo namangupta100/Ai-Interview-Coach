@@ -1,0 +1,44 @@
+name: Deploy landing page to GitHub Pages
+
+# The repo's Pages source is set to "GitHub Actions", which only publishes what a
+# workflow uploads as an artifact. Without this workflow, Pages had nothing to
+# serve and every URL 404'd. This uploads index.html as the site.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Publish only the landing page, not the Python source or dataset.
+      - name: Stage the site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
