@@ -172,18 +172,26 @@ def find_reference(question: str) -> str:
 # Question generation
 # =========================
 def get_question(topic: str, asked: List[str], level: str) -> str:
-    """Always AI-generated, for ANY topic — no fixed question bank."""
+    """Always AI-generated, for ANY topic — no fixed question bank.
+
+    Difficulty is tied to the level and escalates: easy (1/4) -> expert (4/4).
+    """
+    stage = LEVELS.index(level) + 1 if level in LEVELS else 1
     prompt = f"""
-You are an expert technical interviewer. Generate ONE unique {level} level
-interview question about "{topic}".
+You are an expert technical interviewer running a progressive interview about "{topic}".
+This is difficulty stage {stage} of {len(LEVELS)}: **{level.upper()}**.
 
-Difficulty guidelines:
-- easy: Basic concepts, definitions, simple syntax
-- intermediate: Practical usage, comparisons, common patterns
-- advanced: Complex scenarios, edge cases, optimization
-- expert: System design, internals, advanced problem-solving
+Generate ONE interview question that is calibrated PRECISELY to the {level} level —
+not easier, not harder. Difficulty MUST clearly escalate with the stage:
+- easy (1/4): a basic concept, definition, or simple syntax a beginner should know.
+- intermediate (2/4): practical usage, comparisons, or common patterns.
+- advanced (3/4): complex scenarios, edge cases, trade-offs, or optimization.
+- expert (4/4): deep internals, system design, or hard real-world problem-solving.
 
-IMPORTANT: Generate a COMPLETELY DIFFERENT question from these already asked:
+The question must be noticeably harder than a lower stage would be. Keep it to a
+single, focused question.
+
+Do NOT repeat or closely resemble any of these already-asked questions:
 {chr(10).join(asked[-10:]) if asked else "None"}
 
 Respond with ONLY the question text, nothing else.
