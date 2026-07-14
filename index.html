@@ -14,6 +14,8 @@
     --muted: #9099ab;
     --accent: #6c8cff;
     --accent-hover: #8aa2ff;
+    --good: #34d399;
+    --bad: #f87171;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -24,6 +26,8 @@
       --muted: #5d6472;
       --accent: #3a5bd9;
       --accent-hover: #2c49bd;
+      --good: #059669;
+      --bad: #dc2626;
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,103 +37,341 @@
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     line-height: 1.6;
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     padding: 24px;
   }
-  .wrap { width: 100%; max-width: 620px; }
-  .badge {
-    display: inline-block;
-    font-size: 12px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 4px 12px;
-    margin-bottom: 20px;
-  }
-  h1 {
-    font-size: clamp(30px, 6vw, 44px);
-    line-height: 1.15;
-    letter-spacing: -.02em;
-    margin-bottom: 14px;
-  }
-  .lede { color: var(--muted); font-size: 17px; margin-bottom: 28px; }
-  .cta {
-    display: inline-block;
-    background: var(--accent);
-    color: #fff;
-    text-decoration: none;
-    font-weight: 600;
-    padding: 13px 26px;
-    border-radius: 10px;
-    transition: background .15s ease;
-  }
-  .cta:hover { background: var(--accent-hover); }
-  .note { font-size: 13px; color: var(--muted); margin-top: 12px; }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 12px;
-    margin-top: 40px;
-  }
-  .card {
+  .wrap { width: 100%; max-width: 720px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  header h1 { font-size: 18px; letter-spacing: -.01em; cursor: pointer; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
   }
-  .card h3 { font-size: 14px; margin-bottom: 4px; }
-  .card p { font-size: 13px; color: var(--muted); }
-  footer {
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-    font-size: 13px;
-    color: var(--muted);
+  .hidden { display: none !important; }
+
+  /* Friendly intro */
+  .greeting { font-size: clamp(24px, 5vw, 32px); line-height: 1.25; letter-spacing: -.02em; margin-bottom: 8px; }
+  .greeting .wave { display: inline-block; }
+  .intro-sub { color: var(--muted); font-size: 16px; margin-bottom: 22px; }
+  .label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .05em; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .topic {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 10px 18px; font-size: 15px; font-family: inherit; cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
   }
-  footer a { color: var(--accent); text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
+  .topic:hover { border-color: var(--accent); }
+  .topic.selected { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  input[type=text], textarea {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font-size: 15px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 120px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    font-weight: 600; font-size: 15px; font-family: inherit;
+    padding: 13px 24px; cursor: pointer;
+    transition: background .15s ease, opacity .15s ease;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.mic.recording { background: var(--bad); }
+
+  .toggle { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
+  .toggle input { width: auto; }
+
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .chip {
+    font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px;
+  }
+  .chip.level { color: var(--accent); border-color: var(--accent); }
+
+  .question { font-size: 20px; line-height: 1.4; margin-bottom: 20px; }
+  .feedback { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin-bottom: 20px; white-space: pre-wrap; }
+  .score-line { font-weight: 700; margin-bottom: 6px; }
+  .banner { background: color-mix(in srgb, var(--good) 15%, transparent); border: 1px solid var(--good); color: var(--good); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 12px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .big-score { font-size: 44px; font-weight: 800; letter-spacing: -.02em; }
 </style>
 </head>
 <body>
-  <main class="wrap">
-    <span class="badge">AI &middot; RAG &middot; Voice</span>
-    <h1>AI Interview Coach</h1>
-    <p class="lede">
-      A mock technical interviewer that asks adaptive questions, listens to your
-      spoken answers, and scores them against a retrieval-backed reference — then
-      moves you up a difficulty level when you earn it.
-    </p>
+<div class="wrap">
+  <header>
+    <h1 id="homeTitle">🤖 AI Interview Coach</h1>
+    <span class="sub">AI-scored mock interviews</span>
+  </header>
 
-    <a class="cta" href="/app">Launch the app &rarr;</a>
-    <p class="note">Runs right here — starts the interview in your browser.</p>
+  <!-- FRIENDLY INTRO / TOPIC PICKER -->
+  <section id="setup" class="panel">
+    <h2 class="greeting">Hi there <span class="wave">👋</span></h2>
+    <p class="intro-sub">I'm your AI interview coach. What topic would you like to prep with today?</p>
 
-    <div class="grid">
-      <div class="card">
-        <h3>Adaptive difficulty</h3>
-        <p>Four levels. Score 60% over five questions to advance.</p>
-      </div>
-      <div class="card">
-        <h3>Voice answers</h3>
-        <p>Speak your response; it is transcribed and scored.</p>
-      </div>
-      <div class="card">
-        <h3>RAG-backed scoring</h3>
-        <p>Answers are graded against a vector-indexed Q&amp;A corpus.</p>
-      </div>
-      <div class="card">
-        <h3>Claude</h3>
-        <p>Question generation and strict evaluation.</p>
+    <span class="label">Pick a topic</span>
+    <div class="chips" id="topicChips">
+      <button type="button" class="topic" data-topic="Python">Python</button>
+      <button type="button" class="topic" data-topic="JavaScript">JavaScript</button>
+      <button type="button" class="topic" data-topic="Data Structures">Data Structures</button>
+      <button type="button" class="topic" data-topic="Machine Learning">Machine Learning</button>
+      <button type="button" class="topic" data-topic="SQL">SQL</button>
+      <button type="button" class="topic" data-topic="System Design">System Design</button>
+    </div>
+
+    <span class="label">…or type your own</span>
+    <input type="text" id="customTopic" placeholder="e.g. React, Java, DevOps, Statistics…" autocomplete="off" />
+
+    <div class="row" style="margin-top:22px">
+      <button class="btn" id="startBtn" disabled>Continue →</button>
+      <label class="toggle"><input type="checkbox" id="voiceToggle" checked /> 🔊 Read questions aloud</label>
+    </div>
+    <p class="note">Five questions per level. Score 60% to move up: easy → intermediate → advanced → expert.</p>
+  </section>
+
+  <!-- INTERVIEW -->
+  <section id="interview" class="panel hidden">
+    <div class="meta">
+      <span class="chip" id="topicChip"></span>
+      <span class="chip level" id="levelChip"></span>
+      <span class="chip" id="progressChip"></span>
+    </div>
+
+    <div class="banner hidden" id="levelUp"></div>
+
+    <div id="feedbackBlock" class="hidden">
+      <div class="feedback">
+        <div class="score-line" id="scoreLine"></div>
+        <div id="feedbackText"></div>
       </div>
     </div>
 
-    <footer>
-      Built with Streamlit, LangChain, ChromaDB and Claude &middot;
-      <a href="https://github.com/namangupta100/Ai-Interview-Coach">Source on GitHub</a>
-    </footer>
-  </main>
+    <p class="question" id="questionText"></p>
+
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn ghost" id="speakBtn" type="button">🔊 Hear question</button>
+      <button class="btn ghost mic" id="micBtn" type="button">🎤 Speak answer</button>
+    </div>
+
+    <label class="label" for="answer">Your answer</label>
+    <textarea id="answer" placeholder="Type your answer, or use the mic to speak it…"></textarea>
+
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="submitBtn">Submit answer</button>
+      <button class="btn ghost" id="endBtn">End interview</button>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="panel hidden">
+    <div class="meta">
+      <span class="chip" id="rTopicChip"></span>
+      <span class="chip level" id="rLevelChip"></span>
+    </div>
+    <div class="big-score" id="avgScore"></div>
+    <p class="note" id="rSummary"></p>
+    <div class="feedback" style="margin-top:16px" id="assessment"></div>
+    <div class="row" style="margin-top:20px">
+      <button class="btn" id="againBtn">Practice another topic</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const API = "/api/interview";
+  let state = null;
+  let selectedTopic = null;
+
+  const $ = (id) => document.getElementById(id);
+  const setups = $("setup"), interview = $("interview"), results = $("results");
+
+  async function call(payload) {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
+  function busy(btn, on, label) {
+    if (on) {
+      btn.dataset.label = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span>' + (label || "Working…");
+      btn.disabled = true;
+    } else {
+      btn.innerHTML = btn.dataset.label || label;
+      btn.disabled = false;
+    }
+  }
+
+  // ---- Topic selection ----
+  function currentTopic() {
+    const typed = $("customTopic").value.trim();
+    return typed || selectedTopic;
+  }
+  function refreshStart() { $("startBtn").disabled = !currentTopic(); }
+
+  $("topicChips").addEventListener("click", (e) => {
+    const btn = e.target.closest(".topic");
+    if (!btn) return;
+    selectedTopic = btn.dataset.topic;
+    $("customTopic").value = "";
+    document.querySelectorAll(".topic").forEach((b) => b.classList.toggle("selected", b === btn));
+    refreshStart();
+  });
+  $("customTopic").addEventListener("input", () => {
+    if ($("customTopic").value.trim()) {
+      selectedTopic = null;
+      document.querySelectorAll(".topic").forEach((b) => b.classList.remove("selected"));
+    }
+    refreshStart();
+  });
+
+  // ---- Voice: text-to-speech ----
+  function speak(text) {
+    if (!$("voiceToggle").checked || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1; u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }
+
+  // ---- Voice: speech-to-text ----
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizer = null, recording = false;
+  if (SR) {
+    recognizer = new SR();
+    recognizer.continuous = true;
+    recognizer.interimResults = false;
+    recognizer.lang = "en-US";
+    recognizer.onresult = (e) => {
+      let text = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript + " ";
+      const box = $("answer");
+      box.value = (box.value + " " + text).trim();
+    };
+    recognizer.onend = () => { recording = false; $("micBtn").classList.remove("recording"); $("micBtn").textContent = "🎤 Speak answer"; };
+  }
+  function toggleMic() {
+    if (!recognizer) { alert("Your browser doesn't support voice input. Please type your answer."); return; }
+    if (recording) { recognizer.stop(); return; }
+    recording = true;
+    $("micBtn").classList.add("recording");
+    $("micBtn").textContent = "⏹ Stop recording";
+    recognizer.start();
+  }
+
+  // ---- Screens ----
+  function goHome() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    interview.classList.add("hidden");
+    results.classList.add("hidden");
+    setups.classList.remove("hidden");
+    state = null;
+  }
+
+  function showQuestion(question, level, feedback) {
+    setups.classList.add("hidden");
+    results.classList.add("hidden");
+    interview.classList.remove("hidden");
+
+    $("topicChip").textContent = state.topic;
+    $("levelChip").textContent = level + " level";
+    $("progressChip").textContent = "Q" + (state.answer_count + 1) + " · " + (state.level_questions || 0) + "/5 this level";
+    $("questionText").textContent = question;
+    $("answer").value = "";
+
+    if (feedback) {
+      $("feedbackBlock").classList.remove("hidden");
+      $("scoreLine").textContent = "Score: " + feedback.score + "/5";
+      $("scoreLine").style.color = feedback.score >= 3 ? "var(--good)" : "var(--bad)";
+      $("feedbackText").textContent = feedback.text;
+    } else {
+      $("feedbackBlock").classList.add("hidden");
+    }
+
+    if (feedback && feedback.levelCompleted) {
+      const b = $("levelUp");
+      b.textContent = "🎉 " + feedback.levelCompleted + " complete — moving up to " + level + "!";
+      b.classList.remove("hidden");
+    } else {
+      $("levelUp").classList.add("hidden");
+    }
+
+    speak(question);
+  }
+
+  // ---- Actions ----
+  $("startBtn").onclick = async function () {
+    const topic = currentTopic();
+    if (!topic) return;
+    busy(this, true, "Preparing your first question…");
+    try {
+      const data = await call({ action: "start", topic });
+      state = data.state;
+      showQuestion(data.question, data.level, null);
+    } catch (e) { alert("Could not start: " + e.message); }
+    finally { busy(this, false, "Continue →"); }
+  };
+
+  $("submitBtn").onclick = async function () {
+    const answer = $("answer").value.trim();
+    if (!answer) { alert("Please enter or speak an answer first."); return; }
+    busy(this, true, "Scoring…");
+    try {
+      const data = await call({ action: "answer", answer, state });
+      const evalText = data.evaluation || "";
+      const fb = evalText.replace(/^Score:.*$/im, "").replace(/^Feedback:\s*/im, "").trim();
+      state = data.state;
+      showQuestion(data.next_question, data.level, {
+        score: data.score,
+        text: fb || evalText,
+        levelCompleted: data.level_completed,
+      });
+    } catch (e) { alert("Could not score answer: " + e.message); }
+    finally { busy(this, false, "Submit answer"); }
+  };
+
+  $("endBtn").onclick = async function () {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    busy(this, true, "Finishing…");
+    try {
+      const data = await call({ action: "end", state });
+      interview.classList.add("hidden");
+      results.classList.remove("hidden");
+      $("rTopicChip").textContent = state.topic;
+      $("rLevelChip").textContent = data.final_level + " level reached";
+      $("avgScore").textContent = data.avg_score + " / 5";
+      $("rSummary").textContent = data.total_questions + " questions answered · average score " + data.avg_score + "/5";
+      $("assessment").textContent = data.assessment;
+    } catch (e) { alert("Could not end interview: " + e.message); }
+    finally { busy(this, false, "End interview"); }
+  };
+
+  $("speakBtn").onclick = () => speak($("questionText").textContent);
+  $("micBtn").onclick = toggleMic;
+  $("againBtn").onclick = goHome;
+  $("homeTitle").onclick = goHome;
+})();
+</script>
 </body>
 </html>
