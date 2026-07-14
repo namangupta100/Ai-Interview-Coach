@@ -360,10 +360,28 @@ class handler(BaseHTTPRequestHandler):
             self._send(500, {"error": str(exc)})
 
     def do_GET(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        # /api/interview?selftest=1 actually calls each provider with a tiny
+        # prompt and reports the real result — a definitive live diagnostic.
+        if parse_qs(urlparse(self.path).query).get("selftest"):
+            result = {}
+            for name, fn in (("groq", _ask_groq), ("gemini", _ask_gemini)):
+                try:
+                    fn("Reply with the single word: OK", 8)
+                    result[name] = "ok"
+                except urllib.error.HTTPError as e:
+                    body = e.read().decode("utf-8", "replace")[:220]
+                    result[name] = f"{e.code}: {body}"
+                except Exception as e:  # missing key / network / parse
+                    result[name] = str(e)[:220]
+            self._send(200, {"selftest": result})
+            return
+
         self._send(200, {
             "ok": True,
             "service": "ai-interview-coach",
-            "version": "fallback-v2",
+            "version": "selftest-v3",
             "providers": {
                 "groq": bool(os.getenv("GROQ_API_KEY")),
                 "gemini": bool(os.getenv("GEMINI_API_KEY")),
