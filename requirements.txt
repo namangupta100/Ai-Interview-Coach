@@ -1,31 +1,5 @@
-# AI Interview Coach - Dependencies
-
-# Web Framework
-fastapi>=0.100.0
-uvicorn>=0.22.0
-streamlit>=1.30.0
-
-# LangChain & LLM
-langchain>=0.1.0
-langchain-anthropic>=0.3.0       # Claude (set ANTHROPIC_API_KEY)
-langchain-chroma>=0.1.0
-langchain-core>=0.1.0
-
-# Vector DB — also supplies the local ONNX embedding model (see embeddings.py)
-chromadb>=0.4.0
-onnxruntime>=1.16.0
-
-# Data
-pandas>=2.0.0
-
-# MCP Server
-mcp>=0.1.0
-
-# Voice AI
-gTTS>=2.3.0                      # Text-to-Speech
-SpeechRecognition>=3.10.0        # Speech-to-Text (file-based; no PyAudio needed)
-streamlit-mic-recorder>=0.0.8    # Browser-side mic capture
-
-# Utilities
-pydantic>=2.0.0
-python-dotenv>=1.0.0             # loads .env for local dev
+# Dependencies for the Vercel serverless function (api/interview.py).
+# Kept intentionally minimal — Vercel bundles this into the function, which has a
+# 250 MB limit. The old Streamlit/ChromaDB/onnxruntime stack lived here and blew
+# past that; it now survives in requirements-streamlit.txt for local/HF use.
+anthropic>=0.40.0

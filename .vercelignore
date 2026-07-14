@@ -1,0 +1,17 @@
+# Keep the old Streamlit/Python app out of the Vercel deployment. Vercel only
+# needs index.html, app.html, api/interview.py and data/dataset.csv. Everything
+# below is for the legacy local/Hugging Face Streamlit app.
+venv/
+__pycache__/
+vectordb/
+vectordb_minilm/
+frontend.py
+engine.py
+app.py
+rag.py
+embeddings.py
+voice_ai.py
+mcp_server.py
+clean_data.py
+requirements-streamlit.txt
+data/clean_dataset.json

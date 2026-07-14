@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Interview Coach — Live Interview</title>
+<meta name="description" content="Practice technical interviews with adaptive difficulty, voice interaction, and AI-scored feedback." />
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #151922;
+    --border: #242a36;
+    --text: #e8eaf0;
+    --muted: #9099ab;
+    --accent: #6c8cff;
+    --accent-hover: #8aa2ff;
+    --good: #34d399;
+    --bad: #f87171;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --border: #e3e6ee;
+      --text: #171a21;
+      --muted: #5d6472;
+      --accent: #3a5bd9;
+      --accent-hover: #2c49bd;
+      --good: #059669;
+      --bad: #dc2626;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .wrap { width: 100%; max-width: 720px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  header h1 { font-size: 20px; letter-spacing: -.01em; }
+  header a { color: var(--muted); text-decoration: none; font-size: 13px; }
+  header a:hover { color: var(--accent); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  select, textarea, input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 120px; }
+  select:focus, textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 10px;
+    font-weight: 600; font-size: 15px; font-family: inherit;
+    padding: 12px 22px; cursor: pointer;
+    transition: background .15s ease, opacity .15s ease;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.mic.recording { background: var(--bad); }
+
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px;
+  }
+  .chip.level { color: var(--accent); border-color: var(--accent); }
+
+  .question { font-size: 20px; line-height: 1.4; margin-bottom: 20px; }
+  .feedback { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin-bottom: 20px; white-space: pre-wrap; }
+  .score-line { font-weight: 700; margin-bottom: 6px; }
+  .banner { background: color-mix(in srgb, var(--good) 15%, transparent); border: 1px solid var(--good); color: var(--good); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
+  .hidden { display: none !important; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .big-score { font-size: 40px; font-weight: 800; letter-spacing: -.02em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🤖 AI Interview Coach</h1>
+    <a href="/">← Back to home</a>
+  </header>
+
+  <!-- SETUP -->
+  <section id="setup" class="panel">
+    <label for="topic">Choose a topic</label>
+    <select id="topic">
+      <option>Python</option>
+      <option>Data Structures</option>
+      <option>Machine Learning</option>
+      <option>JavaScript</option>
+      <option>SQL</option>
+      <option>System Design</option>
+    </select>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="startBtn">Start interview →</button>
+      <label style="display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:13px;cursor:pointer">
+        <input type="checkbox" id="voiceToggle" style="width:auto" checked /> Read questions aloud
+      </label>
+    </div>
+    <p class="note">Five questions per level. Score 60% to advance from easy → intermediate → advanced → expert.</p>
+  </section>
+
+  <!-- INTERVIEW -->
+  <section id="interview" class="panel hidden">
+    <div class="meta">
+      <span class="chip" id="topicChip"></span>
+      <span class="chip level" id="levelChip"></span>
+      <span class="chip" id="progressChip"></span>
+    </div>
+
+    <div class="banner hidden" id="levelUp"></div>
+
+    <div id="feedbackBlock" class="hidden">
+      <div class="feedback">
+        <div class="score-line" id="scoreLine"></div>
+        <div id="feedbackText"></div>
+      </div>
+    </div>
+
+    <p class="question" id="questionText"></p>
+
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn ghost" id="speakBtn" type="button">🔊 Hear question</button>
+      <button class="btn ghost mic" id="micBtn" type="button">🎤 Speak answer</button>
+    </div>
+
+    <label for="answer">Your answer</label>
+    <textarea id="answer" placeholder="Type your answer, or use the mic to speak it…"></textarea>
+
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="submitBtn">Submit answer</button>
+      <button class="btn ghost" id="endBtn">End interview</button>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="panel hidden">
+    <div class="meta">
+      <span class="chip" id="rTopicChip"></span>
+      <span class="chip level" id="rLevelChip"></span>
+    </div>
+    <div class="big-score" id="avgScore"></div>
+    <p class="note" id="rSummary"></p>
+    <div class="feedback" style="margin-top:16px" id="assessment"></div>
+    <div class="row" style="margin-top:20px">
+      <button class="btn" id="againBtn">Start a new interview</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const API = "/api/interview";
+  let state = null;
+
+  const $ = (id) => document.getElementById(id);
+  const setups = $("setup"), interview = $("interview"), results = $("results");
+
+  async function call(payload) {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
+  function busy(btn, on, label) {
+    if (on) {
+      btn.dataset.label = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span>' + (label || "Working…");
+      btn.disabled = true;
+    } else {
+      btn.innerHTML = btn.dataset.label || label;
+      btn.disabled = false;
+    }
+  }
+
+  // ---- Voice: text-to-speech (browser) ----
+  function speak(text) {
+    if (!$("voiceToggle").checked || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1; u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }
+
+  // ---- Voice: speech-to-text (browser) ----
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizer = null, recording = false;
+  if (SR) {
+    recognizer = new SR();
+    recognizer.continuous = true;
+    recognizer.interimResults = false;
+    recognizer.lang = "en-US";
+    recognizer.onresult = (e) => {
+      let text = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript + " ";
+      const box = $("answer");
+      box.value = (box.value + " " + text).trim();
+    };
+    recognizer.onend = () => { recording = false; $("micBtn").classList.remove("recording"); $("micBtn").textContent = "🎤 Speak answer"; };
+  } else {
+    // Hidden until interview shows; disable there.
+  }
+
+  function toggleMic() {
+    if (!recognizer) { alert("Your browser doesn't support voice input. Please type your answer."); return; }
+    if (recording) { recognizer.stop(); return; }
+    recording = true;
+    $("micBtn").classList.add("recording");
+    $("micBtn").textContent = "⏹ Stop recording";
+    recognizer.start();
+  }
+
+  // ---- Render helpers ----
+  function showQuestion(question, level, feedback) {
+    setups.classList.add("hidden");
+    results.classList.add("hidden");
+    interview.classList.remove("hidden");
+
+    $("topicChip").textContent = state.topic;
+    $("levelChip").textContent = level + " level";
+    const perLevel = state.level_questions || 0;
+    $("progressChip").textContent = "Q" + (state.answer_count + 1) + " · " + (perLevel) + "/5 this level";
+    $("questionText").textContent = question;
+    $("answer").value = "";
+
+    if (feedback) {
+      $("feedbackBlock").classList.remove("hidden");
+      $("scoreLine").textContent = "Score: " + feedback.score + "/5";
+      $("scoreLine").style.color = feedback.score >= 3 ? "var(--good)" : "var(--bad)";
+      $("feedbackText").textContent = feedback.text;
+    } else {
+      $("feedbackBlock").classList.add("hidden");
+    }
+
+    if (feedback && feedback.levelCompleted) {
+      const b = $("levelUp");
+      b.textContent = "🎉 " + feedback.levelCompleted + " complete — moving up to " + level + "!";
+      b.classList.remove("hidden");
+    } else {
+      $("levelUp").classList.add("hidden");
+    }
+
+    speak(question);
+  }
+
+  // ---- Actions ----
+  $("startBtn").onclick = async function () {
+    busy(this, true, "Preparing…");
+    try {
+      const data = await call({ action: "start", topic: $("topic").value });
+      state = data.state;
+      showQuestion(data.question, data.level, null);
+    } catch (e) { alert("Could not start: " + e.message); }
+    finally { busy(this, false, "Start interview →"); }
+  };
+
+  $("submitBtn").onclick = async function () {
+    const answer = $("answer").value.trim();
+    if (!answer) { alert("Please enter or speak an answer first."); return; }
+    busy(this, true, "Scoring…");
+    try {
+      const data = await call({ action: "answer", answer, state });
+      // Parse "Score: X/5\nFeedback: ..." into pieces for display.
+      const evalText = data.evaluation || "";
+      const fb = evalText.replace(/^Score:.*$/im, "").replace(/^Feedback:\s*/im, "").trim();
+      state = data.state;
+      showQuestion(data.next_question, data.level, {
+        score: data.score,
+        text: fb || evalText,
+        levelCompleted: data.level_completed,
+      });
+    } catch (e) { alert("Could not score answer: " + e.message); }
+    finally { busy(this, false, "Submit answer"); }
+  };
+
+  $("endBtn").onclick = async function () {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    busy(this, true, "Finishing…");
+    try {
+      const data = await call({ action: "end", state });
+      interview.classList.add("hidden");
+      results.classList.remove("hidden");
+      $("rTopicChip").textContent = state.topic;
+      $("rLevelChip").textContent = data.final_level + " level reached";
+      $("avgScore").textContent = data.avg_score + " / 5";
+      $("rSummary").textContent = data.total_questions + " questions answered · average score " + data.avg_score + "/5";
+      $("assessment").textContent = data.assessment;
+    } catch (e) { alert("Could not end interview: " + e.message); }
+    finally { busy(this, false, "End interview"); }
+  };
+
+  $("speakBtn").onclick = () => speak($("questionText").textContent);
+  $("micBtn").onclick = toggleMic;
+  $("againBtn").onclick = () => { results.classList.add("hidden"); setups.classList.remove("hidden"); state = null; };
+})();
+</script>
+</body>
+</html>

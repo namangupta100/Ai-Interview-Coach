@@ -3,5 +3,10 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "framework": null,
-  "cleanUrls": true
+  "cleanUrls": true,
+  "functions": {
+    "api/interview.py": {
+      "includeFiles": "data/dataset.csv"
+    }
+  }
 }
