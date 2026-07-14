@@ -69,9 +69,12 @@ _dataset: Optional[List[Dict[str, str]]] = None
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-# A browser-like UA: Groq sits behind Cloudflare, which 403s (error 1010) the
-# default "Python-urllib" User-Agent.
-_UA = "Mozilla/5.0 (compatible; AI-Interview-Coach/1.0)"
+# A full, real browser UA: Groq sits behind Cloudflare, which 403s (error 1010)
+# non-browser User-Agents (including the default "Python-urllib").
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any]) -> Dict[str, Any]:
