@@ -357,4 +357,13 @@ class handler(BaseHTTPRequestHandler):
             self._send(500, {"error": str(exc)})
 
     def do_GET(self) -> None:
-        self._send(200, {"ok": True, "service": "ai-interview-coach", "model": MODEL})
+        self._send(200, {
+            "ok": True,
+            "service": "ai-interview-coach",
+            "version": "fallback-v2",
+            "providers": {
+                "groq": bool(os.getenv("GROQ_API_KEY")),
+                "gemini": bool(os.getenv("GEMINI_API_KEY")),
+            },
+            "model": MODEL,
+        })
