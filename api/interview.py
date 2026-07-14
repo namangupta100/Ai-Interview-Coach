@@ -87,6 +87,9 @@ def ask_ai(prompt: str, max_tokens: int = 1024) -> str:
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            # Groq is behind Cloudflare, which blocks the default "Python-urllib"
+            # User-Agent with a 403 (error 1010). A normal UA gets through.
+            "User-Agent": "Mozilla/5.0 (compatible; AI-Interview-Coach/1.0)",
         },
         method="POST",
     )
