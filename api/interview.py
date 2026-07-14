@@ -181,15 +181,18 @@ def get_question(topic: str, asked: List[str], level: str) -> str:
 You are an expert technical interviewer running a progressive interview about "{topic}".
 This is difficulty stage {stage} of {len(LEVELS)}: **{level.upper()}**.
 
-Generate ONE interview question that is calibrated PRECISELY to the {level} level —
+Generate ONE interview question calibrated PRECISELY to the {level} level —
 not easier, not harder. Difficulty MUST clearly escalate with the stage:
-- easy (1/4): a basic concept, definition, or simple syntax a beginner should know.
+- easy (1/4): VERY simple. A single short one-line question about ONE basic
+  concept or definition a complete beginner would know. Maximum ~12 words.
+  No multi-part questions, no "and how/why does it differ", no scenarios.
+  Examples of the right easy style: "What is a variable?", "What is a loop?",
+  "What does the print function do?".
 - intermediate (2/4): practical usage, comparisons, or common patterns.
 - advanced (3/4): complex scenarios, edge cases, trade-offs, or optimization.
 - expert (4/4): deep internals, system design, or hard real-world problem-solving.
 
-The question must be noticeably harder than a lower stage would be. Keep it to a
-single, focused question.
+Keep it a single focused question. For easy especially, keep it to ONE short line.
 
 Do NOT repeat or closely resemble any of these already-asked questions:
 {chr(10).join(asked[-10:]) if asked else "None"}
