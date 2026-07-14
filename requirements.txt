@@ -1,5 +1,5 @@
-# Dependencies for the Vercel serverless function (api/interview.py).
-# Kept intentionally minimal — Vercel bundles this into the function, which has a
-# 250 MB limit. The old Streamlit/ChromaDB/onnxruntime stack lived here and blew
-# past that; it now survives in requirements-streamlit.txt for local/HF use.
-anthropic>=0.40.0
+# The Vercel serverless function (api/interview.py) calls Google Gemini's REST
+# API using Python's standard-library urllib, so it needs NO third-party
+# packages. This file is intentionally empty of dependencies.
+#
+# (The legacy Streamlit/ChromaDB stack lives in requirements-streamlit.txt.)
