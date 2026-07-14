@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Interview Coach</title>
+<meta name="description" content="Practice technical interviews with adaptive difficulty, voice interaction, and AI-scored feedback." />
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #151922;
+    --border: #242a36;
+    --text: #e8eaf0;
+    --muted: #9099ab;
+    --accent: #6c8cff;
+    --accent-hover: #8aa2ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --border: #e3e6ee;
+      --text: #171a21;
+      --muted: #5d6472;
+      --accent: #3a5bd9;
+      --accent-hover: #2c49bd;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .wrap { width: 100%; max-width: 620px; }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 12px;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(30px, 6vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    margin-bottom: 14px;
+  }
+  .lede { color: var(--muted); font-size: 17px; margin-bottom: 28px; }
+  .cta {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 13px 26px;
+    border-radius: 10px;
+    transition: background .15s ease;
+  }
+  .cta:hover { background: var(--accent-hover); }
+  .note { font-size: 13px; color: var(--muted); margin-top: 12px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-top: 40px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .card h3 { font-size: 14px; margin-bottom: 4px; }
+  .card p { font-size: 13px; color: var(--muted); }
+  footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <span class="badge">AI &middot; RAG &middot; Voice</span>
+    <h1>AI Interview Coach</h1>
+    <p class="lede">
+      A mock technical interviewer that asks adaptive questions, listens to your
+      spoken answers, and scores them against a retrieval-backed reference — then
+      moves you up a difficulty level when you earn it.
+    </p>
+
+    <!-- TODO: replace with your live app URL (e.g. your Hugging Face Space) -->
+    <a class="cta" href="REPLACE_WITH_LIVE_APP_URL">Launch the app &rarr;</a>
+    <p class="note">Opens the live interview coach.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Adaptive difficulty</h3>
+        <p>Four levels. Score 60% over five questions to advance.</p>
+      </div>
+      <div class="card">
+        <h3>Voice answers</h3>
+        <p>Speak your response; it is transcribed and scored.</p>
+      </div>
+      <div class="card">
+        <h3>RAG-backed scoring</h3>
+        <p>Answers are graded against a vector-indexed Q&amp;A corpus.</p>
+      </div>
+      <div class="card">
+        <h3>Claude</h3>
+        <p>Question generation and strict evaluation.</p>
+      </div>
+    </div>
+
+    <footer>
+      Built with Streamlit, LangChain, ChromaDB and Claude &middot;
+      <a href="https://github.com/namangupta100/Ai-Interview-Coach">Source on GitHub</a>
+    </footer>
+  </main>
+</body>
+</html>
