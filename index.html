@@ -154,26 +154,34 @@
 
     <div class="banner hidden" id="levelUp"></div>
 
-    <div id="feedbackBlock" class="hidden">
+    <!-- REVIEW: shown after submitting, before the next question -->
+    <div id="reviewBlock" class="hidden">
       <div class="feedback">
         <div class="score-line" id="scoreLine"></div>
         <div id="feedbackText"></div>
       </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn" id="nextBtn">Next question →</button>
+        <button class="btn ghost" id="endBtn2">End interview</button>
+      </div>
     </div>
 
-    <p class="question" id="questionText"></p>
+    <!-- ANSWERING: the current question + answer box -->
+    <div id="qArea">
+      <p class="question" id="questionText"></p>
 
-    <div class="row" style="margin-bottom:12px">
-      <button class="btn ghost" id="speakBtn" type="button">🔊 Hear question</button>
-      <button class="btn ghost mic" id="micBtn" type="button">🎤 Speak answer</button>
-    </div>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn ghost" id="speakBtn" type="button">🔊 Hear question</button>
+        <button class="btn ghost mic" id="micBtn" type="button">🎤 Speak answer</button>
+      </div>
 
-    <label class="label" for="answer">Your answer</label>
-    <textarea id="answer" placeholder="Type your answer, or use the mic to speak it…"></textarea>
+      <label class="label" for="answer">Your answer</label>
+      <textarea id="answer" placeholder="Type your answer, or use the mic to speak it…"></textarea>
 
-    <div class="row" style="margin-top:16px">
-      <button class="btn" id="submitBtn">Submit answer</button>
-      <button class="btn ghost" id="endBtn">End interview</button>
+      <div class="row" style="margin-top:16px">
+        <button class="btn" id="submitBtn">Submit answer</button>
+        <button class="btn ghost" id="endBtn">End interview</button>
+      </div>
     </div>
   </section>
 
@@ -197,6 +205,7 @@
   const API = "/api/interview";
   let state = null;
   let selectedTopic = null;
+  let pending = null;  // next question held while the user reads feedback
 
   const $ = (id) => document.getElementById(id);
   const setups = $("setup"), interview = $("interview"), results = $("results");
@@ -287,12 +296,18 @@
     results.classList.add("hidden");
     setups.classList.remove("hidden");
     state = null;
+    pending = null;
   }
 
-  function showQuestion(question, level, feedback) {
+  // Show a question to answer (also speaks it). No feedback here.
+  function showQuestion(question, level) {
     setups.classList.add("hidden");
     results.classList.add("hidden");
     interview.classList.remove("hidden");
+
+    $("reviewBlock").classList.add("hidden");
+    $("levelUp").classList.add("hidden");
+    $("qArea").classList.remove("hidden");
 
     $("topicChip").textContent = state.topic;
     $("levelChip").textContent = level + " level";
@@ -300,24 +315,27 @@
     $("questionText").textContent = question;
     $("answer").value = "";
 
-    if (feedback) {
-      $("feedbackBlock").classList.remove("hidden");
-      $("scoreLine").textContent = "Score: " + feedback.score + "/5";
-      $("scoreLine").style.color = feedback.score >= 3 ? "var(--good)" : "var(--bad)";
-      $("feedbackText").textContent = feedback.text;
-    } else {
-      $("feedbackBlock").classList.add("hidden");
-    }
+    speak(question);
+  }
 
-    if (feedback && feedback.levelCompleted) {
+  // Show only the score + feedback for the answer just given. Does NOT show or
+  // speak the next question — that waits for the "Next question" button.
+  function showReview(feedback) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    $("qArea").classList.add("hidden");
+    $("reviewBlock").classList.remove("hidden");
+
+    $("scoreLine").textContent = "Score: " + feedback.score + "/5";
+    $("scoreLine").style.color = feedback.score >= 3 ? "var(--good)" : "var(--bad)";
+    $("feedbackText").textContent = feedback.text;
+
+    if (feedback.levelCompleted) {
       const b = $("levelUp");
-      b.textContent = "🎉 " + feedback.levelCompleted + " complete — moving up to " + level + "!";
+      b.textContent = "🎉 " + feedback.levelCompleted + " complete — next level unlocked!";
       b.classList.remove("hidden");
     } else {
       $("levelUp").classList.add("hidden");
     }
-
-    speak(question);
   }
 
   // ---- Actions ----
@@ -328,7 +346,7 @@
     try {
       const data = await call({ action: "start", topic });
       state = data.state;
-      showQuestion(data.question, data.level, null);
+      showQuestion(data.question, data.level);
     } catch (e) { alert("Could not start: " + e.message); }
     finally { busy(this, false, "Continue →"); }
   };
@@ -342,18 +360,22 @@
       const evalText = data.evaluation || "";
       const fb = evalText.replace(/^Score:.*$/im, "").replace(/^Feedback:\s*/im, "").trim();
       state = data.state;
-      showQuestion(data.next_question, data.level, {
-        score: data.score,
-        text: fb || evalText,
-        levelCompleted: data.level_completed,
-      });
+      // Stash the next question; reveal it only when the user clicks Next.
+      pending = { question: data.next_question, level: data.level };
+      showReview({ score: data.score, text: fb || evalText, levelCompleted: data.level_completed });
     } catch (e) { alert("Could not score answer: " + e.message); }
     finally { busy(this, false, "Submit answer"); }
   };
 
-  $("endBtn").onclick = async function () {
+  $("nextBtn").onclick = function () {
+    if (!pending) return;
+    showQuestion(pending.question, pending.level);
+    pending = null;
+  };
+
+  async function endInterview(btn) {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
-    busy(this, true, "Finishing…");
+    busy(btn, true, "Finishing…");
     try {
       const data = await call({ action: "end", state });
       interview.classList.add("hidden");
@@ -364,8 +386,10 @@
       $("rSummary").textContent = data.total_questions + " questions answered · average score " + data.avg_score + "/5";
       $("assessment").textContent = data.assessment;
     } catch (e) { alert("Could not end interview: " + e.message); }
-    finally { busy(this, false, "End interview"); }
-  };
+    finally { busy(btn, false, "End interview"); }
+  }
+  $("endBtn").onclick = function () { endInterview(this); };
+  $("endBtn2").onclick = function () { endInterview(this); };
 
   $("speakBtn").onclick = () => speak($("questionText").textContent);
   $("micBtn").onclick = toggleMic;
