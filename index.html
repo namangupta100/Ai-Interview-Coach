@@ -117,6 +117,26 @@
   .utable th, .utable td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .utable th { color: var(--muted); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; font-weight: 600; }
   .utable tbody tr:hover, .utable tr:hover td { background: var(--bg); }
+  .hist-item { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .hist-item .q { font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
+  .hist-item .a { color: var(--muted); white-space: pre-wrap; margin-bottom: 10px; }
+  .hist-item .meta-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+  .hist-item .hist-score { font-weight: 700; }
+
+  /* Dashboard analytics */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .stat .num { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+  .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+  .breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .bd { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .bd h3 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; font-weight: 600; }
+  .barrow { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+  .barrow:last-child { margin-bottom: 0; }
+  .barrow .k { width: 92px; flex-shrink: 0; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barrow .bar { flex: 1; height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .barrow .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .barrow .v { width: 26px; text-align: right; color: var(--muted); }
   .note { font-size: 13px; color: var(--muted); margin-top: 12px; }
   .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -183,13 +203,25 @@
   <!-- ADMIN: users & usage -->
   <section id="admin" class="panel hidden">
     <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:16px">
-      <h2 class="greeting" style="font-size:22px; margin:0">Users &amp; usage</h2>
-      <button class="btn ghost small" id="adminBack" type="button">← Back to practice</button>
+      <h2 class="greeting" style="font-size:22px; margin:0">Dashboard</h2>
+      <button class="btn ghost small" id="adminBack" type="button">Practice mode →</button>
     </div>
+    <div id="analytics"></div>
+    <p class="label" style="margin-top:4px">All users</p>
     <p class="note" id="adminCount" style="margin-top:0"></p>
     <div style="overflow-x:auto; margin-top:8px">
       <table class="utable" id="userTable"></table>
     </div>
+  </section>
+
+  <!-- ADMIN: one user's interview history -->
+  <section id="adminDetail" class="panel hidden">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:6px">
+      <h2 class="greeting" style="font-size:22px; margin:0" id="detailTitle">History</h2>
+      <button class="btn ghost small" id="detailBack" type="button">← All users</button>
+    </div>
+    <p class="note" id="detailMeta" style="margin-top:0"></p>
+    <div id="historyList" style="margin-top:12px"></div>
   </section>
 
   <!-- FRIENDLY INTRO / TOPIC PICKER -->
@@ -287,7 +319,7 @@
 
   const $ = (id) => document.getElementById(id);
   const authEl = $("auth"), setups = $("setup"), interview = $("interview"),
-        results = $("results"), admin = $("admin");
+        results = $("results"), admin = $("admin"), adminDetail = $("adminDetail");
 
   async function call(payload) {
     const res = await fetch(API, {
@@ -333,8 +365,10 @@
     showAuth();
   }
 
+  const isAdmin = (u) => u && (u.role === "admin" || u.role === "owner");
+
   function showAuth() {
-    [setups, interview, results, admin].forEach((s) => s.classList.add("hidden"));
+    [setups, interview, results, admin, adminDetail].forEach((s) => s.classList.add("hidden"));
     authEl.classList.remove("hidden");
     $("userBox").classList.add("hidden");
     $("headerSub").classList.remove("hidden");
@@ -345,13 +379,15 @@
     $("userBox").classList.remove("hidden");
     $("headerSub").classList.add("hidden");   // make room for the user controls
     $("userLabel").textContent = user.name || user.email;
-    $("adminBtn").classList.toggle("hidden", user.role !== "admin");
+    $("adminBtn").classList.toggle("hidden", !isAdmin(user));
   }
   function enterApp() {
     authEl.classList.add("hidden");
-    admin.classList.add("hidden");
-    goHome();          // reveals the topic picker
+    adminDetail.classList.add("hidden");
     setUserBox();
+    // Owners/admins land on the dashboard; everyone else on the topic picker.
+    if (isAdmin(user)) { admin.classList.remove("hidden"); openAdmin(); }
+    else { goHome(); }
   }
 
   function showAuthError(msg) {
@@ -400,13 +436,19 @@
     const d = new Date(ts * 1000);
     return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
+  function roleBadge(role) {
+    if (role === "owner") return "🛡️ owner";
+    if (role === "admin") return "👑 admin";
+    return "user";
+  }
   function renderUsers(users) {
     const head = "<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Interviews</th>"
-      + "<th>Answered</th><th>Skipped</th><th>Avg</th><th>Level</th><th>Topics</th><th>Last active</th></tr></thead>";
+      + "<th>Answered</th><th>Skipped</th><th>Avg</th><th>Level</th><th>Topics</th>"
+      + "<th>Last active</th><th></th></tr></thead>";
     const body = users.map((u) => "<tr>"
       + "<td>" + esc(u.name) + "</td>"
       + "<td>" + esc(u.email) + "</td>"
-      + "<td>" + (u.role === "admin" ? "👑 admin" : "user") + "</td>"
+      + "<td>" + roleBadge(u.role) + "</td>"
       + "<td>" + u.interviews + "</td>"
       + "<td>" + u.answered + "</td>"
       + "<td>" + u.skipped + "</td>"
@@ -414,21 +456,103 @@
       + "<td>" + esc(u.highest_level) + "</td>"
       + "<td>" + ((u.topics || []).map(esc).join(", ") || "—") + "</td>"
       + "<td>" + fmtDate(u.last_active) + "</td>"
+      + '<td><button class="btn ghost small hview" data-uid="' + esc(u.id)
+        + '" data-email="' + esc(u.email) + '" data-name="' + esc(u.name) + '">History</button></td>'
       + "</tr>").join("");
     $("userTable").innerHTML = head + "<tbody>" + body + "</tbody>";
   }
-  $("adminBtn").onclick = async function () {
-    busy(this, true, "Loading…");
+
+  function statTile(num, lbl) {
+    return '<div class="stat"><div class="num">' + num + '</div><div class="lbl">' + lbl + "</div></div>";
+  }
+  function barRow(k, v, max) {
+    const pct = Math.round((v / (max || 1)) * 100);
+    return '<div class="barrow"><span class="k">' + esc(k) + "</span>"
+      + '<span class="bar"><span style="width:' + pct + '%"></span></span>'
+      + '<span class="v">' + v + "</span></div>";
+  }
+  function renderAnalytics(a) {
+    if (!a) { $("analytics").innerHTML = ""; return; }
+    const tiles = [
+      statTile(a.total_users, "Users"),
+      statTile(a.total_interviews, "Interviews"),
+      statTile(a.total_answered, "Answers scored"),
+      statTile(a.total_skipped, "Skipped"),
+      statTile(a.avg_score, "Avg score / 5"),
+      statTile(a.active_7d, "Active · 7d"),
+    ].join("");
+
+    const topics = (a.top_topics || []);
+    const maxT = Math.max(1, ...topics.map((t) => t.users));
+    const topicRows = topics.length
+      ? topics.map((t) => barRow(t.topic, t.users, maxT)).join("")
+      : '<p class="note" style="margin:0">No topics practiced yet.</p>';
+
+    const levels = ["easy", "intermediate", "advanced", "expert"];
+    const dist = a.level_distribution || {};
+    const maxL = Math.max(1, ...levels.map((l) => dist[l] || 0));
+    const levelRows = levels.map((l) => barRow(l, dist[l] || 0, maxL)).join("");
+
+    $("analytics").innerHTML =
+      '<div class="stats">' + tiles + "</div>"
+      + '<div class="breakdowns">'
+      +   '<div class="bd"><h3>Top topics (by users)</h3>' + topicRows + "</div>"
+      +   '<div class="bd"><h3>Highest level reached</h3>' + levelRows + "</div>"
+      + "</div>";
+  }
+
+  async function openAdmin() {
+    const btn = $("adminBtn");
+    busy(btn, true, "Loading…");
     try {
       const data = await call({ action: "admin_users" });
+      renderAnalytics(data.analytics);
       renderUsers(data.users);
-      $("adminCount").textContent = data.count + " registered user" + (data.count === 1 ? "" : "s");
-      [setups, interview, results].forEach((s) => s.classList.add("hidden"));
+      const r = (data.analytics && data.analytics.roles) || {};
+      const parts = [data.count + " user" + (data.count === 1 ? "" : "s")];
+      if (r.owner) parts.push(r.owner + " owner");
+      if (r.admin) parts.push(r.admin + " admin");
+      $("adminCount").textContent = parts.join(" · ");
+      [setups, interview, results, adminDetail].forEach((s) => s.classList.add("hidden"));
       admin.classList.remove("hidden");
     } catch (e) { alert(e.message); }
-    finally { busy(this, false, "👑 Admin"); }
-  };
+    finally { busy(btn, false, "👑 Admin"); }
+  }
+  $("adminBtn").onclick = openAdmin;
   $("adminBack").onclick = () => { admin.classList.add("hidden"); goHome(); };
+
+  // Drill into one user's interview history.
+  function renderHistory(data, label) {
+    $("detailTitle").textContent = "History — " + label;
+    $("detailMeta").textContent = data.count + " answer" + (data.count === 1 ? "" : "s") + " recorded";
+    if (!data.history.length) {
+      $("historyList").innerHTML = '<p class="note">No answers recorded yet.</p>';
+      return;
+    }
+    $("historyList").innerHTML = data.history.map((h) => '<div class="hist-item">'
+      + '<div class="q">' + esc(h.question || "(question unavailable)") + "</div>"
+      + '<div class="a">' + esc(h.answer || "") + "</div>"
+      + '<div class="meta-row">'
+      +   '<span class="chip level">' + esc(h.level || "") + "</span>"
+      +   '<span class="hist-score" style="color:' + (h.score >= 3 ? "var(--good)" : "var(--bad)") + '">'
+      +     h.score + "/5</span>"
+      +   (h.topic ? "<span>· " + esc(h.topic) + "</span>" : "")
+      +   "<span>· " + fmtDate(h.at) + "</span>"
+      + "</div></div>").join("");
+  }
+  async function openHistory(uid, email, name) {
+    try {
+      const data = await call({ action: "user_history", uid, email });
+      renderHistory(data, name || email || uid);
+      admin.classList.add("hidden");
+      adminDetail.classList.remove("hidden");
+    } catch (e) { alert(e.message); }
+  }
+  $("userTable").addEventListener("click", (e) => {
+    const b = e.target.closest(".hview");
+    if (b) openHistory(b.dataset.uid, b.dataset.email, b.dataset.name);
+  });
+  $("detailBack").onclick = () => { adminDetail.classList.add("hidden"); openAdmin(); };
 
   // ---- Topic selection ----
   function currentTopic() {
@@ -493,6 +617,7 @@
     interview.classList.add("hidden");
     results.classList.add("hidden");
     admin.classList.add("hidden");
+    adminDetail.classList.add("hidden");
     setups.classList.remove("hidden");
     state = null;
     pending = null;

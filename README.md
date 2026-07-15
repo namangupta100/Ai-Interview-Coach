@@ -327,13 +327,21 @@ with an `action`:
 | `register` | `{email, password, name}` | Returns `{token, user}`. Password ≥ 6 chars. |
 | `login` | `{email, password}` | Returns `{token, user}`. |
 | `me` | `{token}` | Validates a token; returns the current `user`. |
-| `admin_users` | `{token}` | **Admin only.** Returns every user with their usage. |
-| `start` / `answer` / `skip` / `end` | `{…, token}` | Require a valid `token`; usage is recorded per user. |
+| `admin_users` | `{token}` | **Admin/owner only.** Returns every user with their usage, plus an `analytics` summary (totals, active users, top topics, level distribution). |
+| `user_history` | `{token, uid, email}` | **Admin/owner only.** Returns one user's answered questions, answers, and scores. |
+| `start` / `answer` / `skip` / `end` | `{…, token}` | Require a valid `token`; usage + history are recorded per user. |
 
-**Who is the admin?** The email in `ADMIN_EMAIL` is always admin. If that's unset,
-the **first person to register** becomes the admin. Admins get a 👑 **Admin** button
-in the header that opens a *Users & usage* table (interviews, answers, skips, average
-score, highest level reached, topics practiced, last active).
+**Roles.** `owner` > `admin` > `user`. Whoever registers with `OWNER_EMAIL`
+(default `namangupta@232004`) becomes the **owner**. The `ADMIN_EMAIL` account is
+always an admin; if unset, the **first person to register** is made admin so there's
+always one. **Owners and admins land straight on a Dashboard** when they sign in
+(regular users go to the practice screen). The dashboard shows analytics tiles
+(total users, interviews, answers scored, skips, overall average score, users active
+in the last 7 days), breakdown bars for **top topics** and **highest level reached**,
+and a table of every user (interviews, answers, skips, average score, level, topics,
+last active). Each row has a **History** button that drills into that user's recorded
+questions, their answers, the score, level, topic, and timestamp. A **Practice mode →**
+button switches to taking interviews.
 
 Auth is stdlib-only: PBKDF2 password hashing + HMAC-signed session tokens. Users and
 usage live in a KV store — set `KV_REST_API_URL` / `KV_REST_API_TOKEN` (Vercel KV /

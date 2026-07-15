@@ -315,6 +315,13 @@ def _set_json(key: str, obj: Dict[str, Any]) -> None:
 AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-insecure-secret-change-me")
 TOKEN_TTL = 60 * 60 * 24 * 30  # 30 days
 
+# The single "owner" account — the top role, always above any admin. Whoever
+# registers with this email becomes the owner (set OWNER_EMAIL to override).
+OWNER_EMAIL = (os.getenv("OWNER_EMAIL", "namangupta@232004")).strip().lower()
+
+# Roles allowed to open the admin dashboard and drill into user history.
+ADMIN_ROLES = ("admin", "owner")
+
 
 class AuthError(Exception):
     """Raised for auth/permission failures; carries the HTTP status to return."""
@@ -424,11 +431,18 @@ def create_user(email: str, password: str, name: str) -> Dict[str, Any]:
         raise ValueError("An account with that email already exists.")
 
     salt, pw = hash_password(password)
-    # The configured ADMIN_EMAIL is always admin; otherwise the very first person
-    # to register becomes admin, so there is always someone who can see usage.
+    # Role assignment, highest wins:
+    #   * OWNER_EMAIL           -> owner (the top account)
+    #   * ADMIN_EMAIL / first   -> admin (there is always at least one admin)
+    #   * everyone else         -> user
     admin_email = (os.getenv("ADMIN_EMAIL") or "").strip().lower()
     is_first = not set_members("users:all")
-    role = "admin" if (email == admin_email or is_first) else "user"
+    if email == OWNER_EMAIL:
+        role = "owner"
+    elif email == admin_email or is_first:
+        role = "admin"
+    else:
+        role = "user"
 
     user = {
         "id": secrets.token_hex(8),
@@ -471,6 +485,36 @@ def record_usage(
 
 
 # =========================
+# Per-user interview history
+# =========================
+# Every answered question is appended here so an admin can drill into exactly
+# what a user was asked, what they answered, and how it scored. Kept bounded so
+# a heavy user can't grow one key without limit.
+HISTORY_LIMIT = 200
+
+
+def _history_key(uid: str) -> str:
+    return "history:" + uid
+
+
+def get_history(uid: str) -> List[Dict[str, Any]]:
+    raw = kv_get(_history_key(uid))
+    try:
+        hist = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        hist = []
+    return hist if isinstance(hist, list) else []
+
+
+def append_history(uid: str, entry: Dict[str, Any]) -> None:
+    hist = get_history(uid)
+    hist.append(entry)
+    if len(hist) > HISTORY_LIMIT:
+        hist = hist[-HISTORY_LIMIT:]
+    kv_set(_history_key(uid), json.dumps(hist))
+
+
+# =========================
 # Auth actions
 # =========================
 def action_register(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -495,28 +539,92 @@ def action_me(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def action_admin_users(data: Dict[str, Any]) -> Dict[str, Any]:
     payload = require_user(data)
-    if payload.get("role") != "admin":
+    if payload.get("role") not in ADMIN_ROLES:
         raise AuthError("Admin access required.", status=403)
 
     rows = []
+    # Aggregate analytics accumulated in the same pass over every user.
+    roles = {"owner": 0, "admin": 0, "user": 0}
+    level_counts = {lvl: 0 for lvl in LEVELS}
+    topic_counts: Dict[str, int] = {}
+    total_interviews = total_answered = total_skipped = 0
+    total_score_sum = 0.0
+    now = int(time.time())
+    active_24h = active_7d = 0
+
     for email in set_members("users:all"):
         user = get_user_by_email(email)
         if not user:
             continue
         usage = _get_json(_usage_key(user["id"])) or _blank_usage()
         answered = usage.get("answered", 0)
+        interviews = usage.get("interviews", 0)
+        skipped = usage.get("skipped", 0)
+        score_sum = usage.get("score_sum", 0.0)
+        highest = usage.get("highest_level", "easy")
+        last = usage.get("last_active", 0)
+        topics = usage.get("topics", [])
+
         rows.append({
             **public_user(user),
-            "interviews": usage.get("interviews", 0),
+            "interviews": interviews,
             "answered": answered,
-            "skipped": usage.get("skipped", 0),
-            "avg_score": round(usage["score_sum"] / answered, 2) if answered else 0,
-            "highest_level": usage.get("highest_level", "easy"),
-            "topics": usage.get("topics", []),
-            "last_active": usage.get("last_active", 0),
+            "skipped": skipped,
+            "avg_score": round(score_sum / answered, 2) if answered else 0,
+            "highest_level": highest,
+            "topics": topics,
+            "last_active": last,
         })
+
+        roles[user["role"]] = roles.get(user["role"], 0) + 1
+        total_interviews += interviews
+        total_answered += answered
+        total_skipped += skipped
+        total_score_sum += score_sum
+        if highest in level_counts:
+            level_counts[highest] += 1
+        for t in topics:
+            topic_counts[t] = topic_counts.get(t, 0) + 1
+        if last and now - last <= 86400:
+            active_24h += 1
+        if last and now - last <= 7 * 86400:
+            active_7d += 1
+
     rows.sort(key=lambda r: r["last_active"], reverse=True)
-    return {"users": rows, "count": len(rows)}
+    top_topics = sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]
+    analytics = {
+        "total_users": len(rows),
+        "roles": roles,
+        "total_interviews": total_interviews,
+        "total_answered": total_answered,
+        "total_skipped": total_skipped,
+        "avg_score": round(total_score_sum / total_answered, 2) if total_answered else 0,
+        "active_24h": active_24h,
+        "active_7d": active_7d,
+        "top_topics": [{"topic": t, "users": c} for t, c in top_topics],
+        "level_distribution": level_counts,
+    }
+    return {"users": rows, "count": len(rows), "analytics": analytics}
+
+
+def action_admin_user_history(data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = require_user(data)
+    if payload.get("role") not in ADMIN_ROLES:
+        raise AuthError("Admin access required.", status=403)
+
+    uid = (data.get("uid") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    if not uid:
+        raise ValueError("A user id is required.")
+
+    user = get_user_by_email(email) if email else None
+    hist = get_history(uid)
+    hist.sort(key=lambda h: h.get("at", 0), reverse=True)
+    return {
+        "user": public_user(user) if user else {"id": uid, "email": email, "name": email or uid},
+        "history": hist,
+        "count": len(hist),
+    }
 
 
 # =========================
@@ -660,6 +768,8 @@ def dispatch(data: Dict[str, Any]) -> Dict[str, Any]:
         return action_me(data)
     if action == "admin_users":
         return action_admin_users(data)
+    if action == "user_history":
+        return action_admin_user_history(data)
 
     # Everything below is the interview itself and requires a signed-in user.
     # Usage is attributed to the token's user for the admin dashboard.
@@ -670,8 +780,25 @@ def dispatch(data: Dict[str, Any]) -> Dict[str, Any]:
         record_usage(uid, interviews=1, topic=topic)
         return result
     if action == "answer":
-        result = action_answer(data.get("answer", ""), data["state"])
+        # Capture what was actually answered before action_answer overwrites
+        # state["question"] with the next question / advances the level.
+        st = data["state"]
+        answered_q = st.get("question", "")
+        idx = st.get("level_index", 0)
+        asked_level = LEVELS[idx] if 0 <= idx < len(LEVELS) else "easy"
+        topic = st.get("topic", "")
+        answer_text = data.get("answer", "")
+
+        result = action_answer(answer_text, st)
         record_usage(uid, answered=1, score=result["score"], level=result["level"])
+        append_history(uid, {
+            "question": answered_q,
+            "answer": answer_text,
+            "score": result["score"],
+            "level": asked_level,
+            "topic": topic,
+            "at": int(time.time()),
+        })
         return result
     if action == "skip":
         result = action_skip(data["state"])
