@@ -69,10 +69,11 @@
   .topic:hover { border-color: var(--accent); }
   .topic.selected { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
-  input[type=text], textarea {
+  input[type=text], input[type=email], input[type=password], textarea {
     width: 100%; background: var(--bg); color: var(--text);
     border: 1px solid var(--border); border-radius: 10px;
     padding: 12px 14px; font-size: 15px; font-family: inherit;
+    margin-bottom: 4px;
   }
   textarea { resize: vertical; min-height: 120px; }
   input:focus, textarea:focus { outline: none; border-color: var(--accent); }
@@ -90,6 +91,7 @@
   .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
   .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn.mic.recording { background: var(--bad); }
+  .btn.small { padding: 8px 14px; font-size: 13px; }
 
   .toggle { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
   .toggle input { width: auto; }
@@ -106,6 +108,15 @@
   .feedback { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin-bottom: 20px; white-space: pre-wrap; }
   .score-line { font-weight: 700; margin-bottom: 6px; }
   .banner { background: color-mix(in srgb, var(--good) 15%, transparent); border: 1px solid var(--good); color: var(--good); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
+  .banner.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); border-color: var(--bad); color: var(--bad); }
+
+  /* Header user controls + admin table */
+  .userbox { display: flex; align-items: center; gap: 10px; }
+  .userbox .who { color: var(--muted); font-size: 13px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .utable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .utable th, .utable td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .utable th { color: var(--muted); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; font-weight: 600; }
+  .utable tbody tr:hover, .utable tr:hover td { background: var(--bg); }
   .note { font-size: 13px; color: var(--muted); margin-top: 12px; }
   .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -123,7 +134,8 @@
     .question { font-size: 18px; }
     .big-score { font-size: 34px; }
     /* 16px inputs stop iOS from auto-zooming on focus */
-    input[type=text], textarea, select { font-size: 16px; }
+    input[type=text], input[type=email], input[type=password], textarea, select { font-size: 16px; }
+    .userbox .who { max-width: 32vw; }
     textarea { min-height: 140px; }
     /* Buttons in a row share the width and stay easy to tap */
     .row { gap: 8px; }
@@ -137,11 +149,51 @@
 <div class="wrap">
   <header>
     <h1 id="homeTitle">🤖 AI Interview Coach</h1>
-    <span class="sub">AI-scored mock interviews</span>
+    <span class="sub" id="headerSub">AI-scored mock interviews</span>
+    <div class="userbox hidden" id="userBox">
+      <button class="btn ghost small hidden" id="adminBtn" type="button">👑 Admin</button>
+      <span class="who" id="userLabel"></span>
+      <button class="btn ghost small" id="logoutBtn" type="button">Log out</button>
+    </div>
   </header>
 
+  <!-- SIGN IN / REGISTER -->
+  <section id="auth" class="panel">
+    <h2 class="greeting">Welcome <span class="wave">👋</span></h2>
+    <p class="intro-sub" id="authSub">Sign in to start practicing — your progress is saved.</p>
+
+    <div class="banner bad hidden" id="authError"></div>
+
+    <label class="label hidden" id="nameLabel" for="authName">Name</label>
+    <input type="text" id="authName" class="hidden" placeholder="Your name" autocomplete="name" />
+
+    <label class="label" for="authEmail">Email</label>
+    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" />
+
+    <label class="label" for="authPassword">Password</label>
+    <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" />
+
+    <div class="row" style="margin-top:20px">
+      <button class="btn" id="authSubmit" type="button">Sign in</button>
+      <button class="btn ghost" id="authToggle" type="button">Create an account</button>
+    </div>
+    <p class="note">Six-character minimum password. We only store a salted hash — never the password itself.</p>
+  </section>
+
+  <!-- ADMIN: users & usage -->
+  <section id="admin" class="panel hidden">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:16px">
+      <h2 class="greeting" style="font-size:22px; margin:0">Users &amp; usage</h2>
+      <button class="btn ghost small" id="adminBack" type="button">← Back to practice</button>
+    </div>
+    <p class="note" id="adminCount" style="margin-top:0"></p>
+    <div style="overflow-x:auto; margin-top:8px">
+      <table class="utable" id="userTable"></table>
+    </div>
+  </section>
+
   <!-- FRIENDLY INTRO / TOPIC PICKER -->
-  <section id="setup" class="panel">
+  <section id="setup" class="panel hidden">
     <h2 class="greeting">Hi there <span class="wave">👋</span></h2>
     <p class="intro-sub">I'm your AI interview coach. What topic would you like to prep with today?</p>
 
@@ -201,6 +253,7 @@
 
       <div class="row" style="margin-top:16px">
         <button class="btn" id="submitBtn">Submit answer</button>
+        <button class="btn ghost" id="skipBtn">Skip question</button>
         <button class="btn ghost" id="endBtn">End interview</button>
       </div>
     </div>
@@ -228,16 +281,25 @@
   let selectedTopic = null;
   let pending = null;  // next question held while the user reads feedback
 
+  let token = null;    // signed session token
+  let user = null;     // { id, email, name, role }
+  let authMode = "login";
+
   const $ = (id) => document.getElementById(id);
-  const setups = $("setup"), interview = $("interview"), results = $("results");
+  const authEl = $("auth"), setups = $("setup"), interview = $("interview"),
+        results = $("results"), admin = $("admin");
 
   async function call(payload) {
     const res = await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(token ? { ...payload, token } : payload),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {           // token missing/expired — back to sign-in
+      logout();
+      throw new Error(data.error || "Please sign in.");
+    }
     if (data.error) throw new Error(data.error);
     return data;
   }
@@ -252,6 +314,121 @@
       btn.disabled = false;
     }
   }
+
+  // ---- Session / auth ----
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function saveSession(t, u) {
+    token = t; user = u;
+    localStorage.setItem("aic_token", t);
+    localStorage.setItem("aic_user", JSON.stringify(u));
+  }
+  function logout() {
+    token = null; user = null;
+    localStorage.removeItem("aic_token");
+    localStorage.removeItem("aic_user");
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    state = null; pending = null;
+    showAuth();
+  }
+
+  function showAuth() {
+    [setups, interview, results, admin].forEach((s) => s.classList.add("hidden"));
+    authEl.classList.remove("hidden");
+    $("userBox").classList.add("hidden");
+    $("headerSub").classList.remove("hidden");
+    hideAuthError();
+  }
+  function setUserBox() {
+    if (!user) { $("userBox").classList.add("hidden"); return; }
+    $("userBox").classList.remove("hidden");
+    $("headerSub").classList.add("hidden");   // make room for the user controls
+    $("userLabel").textContent = user.name || user.email;
+    $("adminBtn").classList.toggle("hidden", user.role !== "admin");
+  }
+  function enterApp() {
+    authEl.classList.add("hidden");
+    admin.classList.add("hidden");
+    goHome();          // reveals the topic picker
+    setUserBox();
+  }
+
+  function showAuthError(msg) {
+    const b = $("authError");
+    b.textContent = msg; b.classList.remove("hidden");
+  }
+  function hideAuthError() { $("authError").classList.add("hidden"); }
+
+  $("authToggle").onclick = () => {
+    authMode = authMode === "login" ? "register" : "login";
+    const reg = authMode === "register";
+    $("authSub").textContent = reg
+      ? "Create an account to save your progress."
+      : "Sign in to start practicing — your progress is saved.";
+    $("nameLabel").classList.toggle("hidden", !reg);
+    $("authName").classList.toggle("hidden", !reg);
+    $("authSubmit").textContent = reg ? "Create account" : "Sign in";
+    $("authToggle").textContent = reg ? "I already have an account" : "Create an account";
+    $("authPassword").setAttribute("autocomplete", reg ? "new-password" : "current-password");
+    hideAuthError();
+  };
+
+  $("authSubmit").onclick = async function () {
+    const email = $("authEmail").value.trim();
+    const password = $("authPassword").value;
+    const name = $("authName").value.trim();
+    if (!email || !password) { showAuthError("Enter your email and password."); return; }
+    hideAuthError();
+    busy(this, true, authMode === "register" ? "Creating…" : "Signing in…");
+    try {
+      const data = await call({ action: authMode, email, password, name });
+      saveSession(data.token, data.user);
+      enterApp();
+    } catch (e) { showAuthError(e.message); }
+    finally { busy(this, false, authMode === "register" ? "Create account" : "Sign in"); }
+  };
+  // Enter key submits from any auth field.
+  [$("authEmail"), $("authPassword"), $("authName")].forEach((el) =>
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") $("authSubmit").click(); }));
+
+  $("logoutBtn").onclick = logout;
+
+  // ---- Admin: users & usage ----
+  function fmtDate(ts) {
+    if (!ts) return "—";
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  function renderUsers(users) {
+    const head = "<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Interviews</th>"
+      + "<th>Answered</th><th>Skipped</th><th>Avg</th><th>Level</th><th>Topics</th><th>Last active</th></tr></thead>";
+    const body = users.map((u) => "<tr>"
+      + "<td>" + esc(u.name) + "</td>"
+      + "<td>" + esc(u.email) + "</td>"
+      + "<td>" + (u.role === "admin" ? "👑 admin" : "user") + "</td>"
+      + "<td>" + u.interviews + "</td>"
+      + "<td>" + u.answered + "</td>"
+      + "<td>" + u.skipped + "</td>"
+      + "<td>" + u.avg_score + "</td>"
+      + "<td>" + esc(u.highest_level) + "</td>"
+      + "<td>" + ((u.topics || []).map(esc).join(", ") || "—") + "</td>"
+      + "<td>" + fmtDate(u.last_active) + "</td>"
+      + "</tr>").join("");
+    $("userTable").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+  $("adminBtn").onclick = async function () {
+    busy(this, true, "Loading…");
+    try {
+      const data = await call({ action: "admin_users" });
+      renderUsers(data.users);
+      $("adminCount").textContent = data.count + " registered user" + (data.count === 1 ? "" : "s");
+      [setups, interview, results].forEach((s) => s.classList.add("hidden"));
+      admin.classList.remove("hidden");
+    } catch (e) { alert(e.message); }
+    finally { busy(this, false, "👑 Admin"); }
+  };
+  $("adminBack").onclick = () => { admin.classList.add("hidden"); goHome(); };
 
   // ---- Topic selection ----
   function currentTopic() {
@@ -315,6 +492,7 @@
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     interview.classList.add("hidden");
     results.classList.add("hidden");
+    admin.classList.add("hidden");
     setups.classList.remove("hidden");
     state = null;
     pending = null;
@@ -394,6 +572,19 @@
     pending = null;
   };
 
+  // Swap the current question for another at the same level. A skip isn't
+  // scored and doesn't count toward the 5-per-level tally.
+  $("skipBtn").onclick = async function () {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    busy(this, true, "Getting another…");
+    try {
+      const data = await call({ action: "skip", state });
+      state = data.state;
+      showQuestion(data.question, data.level);
+    } catch (e) { alert("Could not skip question: " + e.message); }
+    finally { busy(this, false, "Skip question"); }
+  };
+
   async function endInterview(btn) {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     busy(btn, true, "Finishing…");
@@ -415,7 +606,20 @@
   $("speakBtn").onclick = () => speak($("questionText").textContent);
   $("micBtn").onclick = toggleMic;
   $("againBtn").onclick = goHome;
-  $("homeTitle").onclick = goHome;
+  $("homeTitle").onclick = () => { if (user) goHome(); };
+
+  // ---- Boot: decide the first screen from any saved session ----
+  (async function init() {
+    token = localStorage.getItem("aic_token");
+    try { user = JSON.parse(localStorage.getItem("aic_user") || "null"); } catch (e) { user = null; }
+    if (!token) { showAuth(); return; }
+    try {
+      const data = await call({ action: "me" });   // validates the token server-side
+      user = data.user;
+      localStorage.setItem("aic_user", JSON.stringify(user));
+      enterApp();
+    } catch (e) { logout(); }   // expired/invalid — call() already reset us to sign-in
+  })();
 })();
 </script>
 </body>

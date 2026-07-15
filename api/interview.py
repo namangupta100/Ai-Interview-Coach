@@ -18,10 +18,15 @@ One endpoint, POST /api/interview, dispatched on a JSON `action` field:
     {"action": "end",    "state": {...}}
 """
 
+import base64
 import csv
+import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler
@@ -203,6 +208,318 @@ Respond with ONLY the question text, nothing else.
 
 
 # =========================
+# Persistent store (users + usage)
+# =========================
+# The interview itself is stateless, but auth needs to remember people. We use a
+# tiny key/value layer with two interchangeable backends, chosen at runtime:
+#   * Upstash Redis REST — set KV_REST_API_URL + KV_REST_API_TOKEN (exactly what
+#     Vercel KV / Upstash provision). Durable across serverless instances, still
+#     zero pip dependencies because it's just an HTTPS POST via urllib.
+#   * Local JSON file — a zero-setup fallback for local dev. NOT durable on
+#     Vercel (its filesystem is ephemeral), so production must set the KV vars.
+_KV_URL = os.getenv("KV_REST_API_URL") or os.getenv("UPSTASH_REDIS_REST_URL")
+_KV_TOKEN = os.getenv("KV_REST_API_TOKEN") or os.getenv("UPSTASH_REDIS_REST_TOKEN")
+_KV_ON = bool(_KV_URL and _KV_TOKEN)
+
+_local_cache: Optional[Dict[str, Any]] = None
+
+
+def _kv_command(*args: Any) -> Any:
+    """Run one Redis command over the Upstash REST API; return its `result`."""
+    body = json.dumps([str(a) for a in args]).encode("utf-8")
+    req = urllib.request.Request(
+        _KV_URL,
+        data=body,
+        headers={"Authorization": f"Bearer {_KV_TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read()).get("result")
+
+
+def _local_path() -> str:
+    override = os.getenv("AUTH_STORE_PATH")
+    if override:
+        return override
+    # /tmp is the only writable dir on Vercel; locally keep it beside the repo.
+    base = "/tmp" if os.path.isdir("/tmp") else os.path.dirname(__file__)
+    return os.path.join(base, "authstore.json")
+
+
+def _local() -> Dict[str, Any]:
+    global _local_cache
+    if _local_cache is None:
+        try:
+            with open(_local_path(), encoding="utf-8") as f:
+                _local_cache = json.load(f)
+        except (OSError, ValueError):
+            _local_cache = {"kv": {}, "sets": {}}
+    return _local_cache
+
+
+def _local_save() -> None:
+    with open(_local_path(), "w", encoding="utf-8") as f:
+        json.dump(_local_cache, f)
+
+
+def kv_get(key: str) -> Optional[str]:
+    if _KV_ON:
+        return _kv_command("GET", key)
+    return _local()["kv"].get(key)
+
+
+def kv_set(key: str, value: str) -> None:
+    if _KV_ON:
+        _kv_command("SET", key, value)
+        return
+    _local()["kv"][key] = value
+    _local_save()
+
+
+def set_add(setkey: str, member: str) -> None:
+    if _KV_ON:
+        _kv_command("SADD", setkey, member)
+        return
+    members = _local()["sets"].setdefault(setkey, [])
+    if member not in members:
+        members.append(member)
+        _local_save()
+
+
+def set_members(setkey: str) -> List[str]:
+    if _KV_ON:
+        return _kv_command("SMEMBERS", setkey) or []
+    return list(_local()["sets"].get(setkey, []))
+
+
+def _get_json(key: str) -> Optional[Dict[str, Any]]:
+    raw = kv_get(key)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _set_json(key: str, obj: Dict[str, Any]) -> None:
+    kv_set(key, json.dumps(obj))
+
+
+# =========================
+# Auth (stdlib only)
+# =========================
+# Sessions are stateless, signed tokens: base64url(payload).base64url(HMAC). The
+# secret MUST be stable and shared across instances, so it comes from the
+# environment; set AUTH_SECRET in production or tokens won't survive a redeploy.
+AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-insecure-secret-change-me")
+TOKEN_TTL = 60 * 60 * 24 * 30  # 30 days
+
+
+class AuthError(Exception):
+    """Raised for auth/permission failures; carries the HTTP status to return."""
+
+    def __init__(self, message: str, status: int = 401):
+        super().__init__(message)
+        self.status = status
+
+
+def _b64u(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _b64u_decode(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def hash_password(password: str, salt: Optional[str] = None) -> tuple:
+    salt = salt or secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000)
+    return salt, dk.hex()
+
+
+def verify_password(password: str, salt: str, expected: str) -> bool:
+    _, actual = hash_password(password, salt)
+    return hmac.compare_digest(actual, expected)
+
+
+def make_token(user: Dict[str, Any]) -> str:
+    payload = {
+        "uid": user["id"],
+        "email": user["email"],
+        "role": user["role"],
+        "exp": int(time.time()) + TOKEN_TTL,
+    }
+    body = _b64u(json.dumps(payload).encode("utf-8"))
+    sig = _b64u(hmac.new(AUTH_SECRET.encode("utf-8"), body.encode("ascii"), hashlib.sha256).digest())
+    return f"{body}.{sig}"
+
+
+def parse_token(token: str) -> Optional[Dict[str, Any]]:
+    try:
+        body, sig = token.split(".", 1)
+        expected = _b64u(hmac.new(AUTH_SECRET.encode("utf-8"), body.encode("ascii"), hashlib.sha256).digest())
+        if not hmac.compare_digest(sig, expected):
+            return None
+        payload = json.loads(_b64u_decode(body))
+        if payload.get("exp", 0) < time.time():
+            return None
+        return payload
+    except Exception:
+        return None
+
+
+def require_user(data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = parse_token(data.get("token", "") or "")
+    if not payload:
+        raise AuthError("Please sign in to continue.")
+    return payload
+
+
+# =========================
+# Users + usage
+# =========================
+def _email_key(email: str) -> str:
+    return "user:email:" + email.strip().lower()
+
+
+def _usage_key(uid: str) -> str:
+    return "usage:" + uid
+
+
+def _blank_usage() -> Dict[str, Any]:
+    return {
+        "interviews": 0,
+        "answered": 0,
+        "skipped": 0,
+        "score_sum": 0.0,
+        "topics": [],
+        "highest_level": "easy",
+        "last_active": 0,
+    }
+
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    return _get_json(_email_key(email))
+
+
+def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
+    """Everything about a user EXCEPT the password salt/hash."""
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "created_at": user["created_at"],
+    }
+
+
+def create_user(email: str, password: str, name: str) -> Dict[str, Any]:
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        raise ValueError("A valid email is required.")
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters.")
+    if get_user_by_email(email):
+        raise ValueError("An account with that email already exists.")
+
+    salt, pw = hash_password(password)
+    # The configured ADMIN_EMAIL is always admin; otherwise the very first person
+    # to register becomes admin, so there is always someone who can see usage.
+    admin_email = (os.getenv("ADMIN_EMAIL") or "").strip().lower()
+    is_first = not set_members("users:all")
+    role = "admin" if (email == admin_email or is_first) else "user"
+
+    user = {
+        "id": secrets.token_hex(8),
+        "email": email,
+        "name": (name or "").strip() or email.split("@")[0],
+        "salt": salt,
+        "pw": pw,
+        "role": role,
+        "created_at": int(time.time()),
+    }
+    _set_json(_email_key(email), user)
+    set_add("users:all", email)
+    _set_json(_usage_key(user["id"]), _blank_usage())
+    return user
+
+
+def record_usage(
+    uid: str,
+    *,
+    interviews: int = 0,
+    answered: int = 0,
+    skipped: int = 0,
+    score: float = 0.0,
+    topic: Optional[str] = None,
+    level: Optional[str] = None,
+) -> None:
+    """Best-effort usage counters for the admin dashboard. Read-modify-write is
+    not atomic, but for a practice app the occasional lost increment is fine."""
+    u = _get_json(_usage_key(uid)) or _blank_usage()
+    u["interviews"] = u.get("interviews", 0) + interviews
+    u["answered"] = u.get("answered", 0) + answered
+    u["skipped"] = u.get("skipped", 0) + skipped
+    u["score_sum"] = u.get("score_sum", 0.0) + score
+    if topic and topic not in u["topics"]:
+        u["topics"].append(topic)
+    if level and level in LEVELS and LEVELS.index(level) > LEVELS.index(u.get("highest_level", "easy")):
+        u["highest_level"] = level
+    u["last_active"] = int(time.time())
+    _set_json(_usage_key(uid), u)
+
+
+# =========================
+# Auth actions
+# =========================
+def action_register(data: Dict[str, Any]) -> Dict[str, Any]:
+    user = create_user(data.get("email", ""), data.get("password", ""), data.get("name", ""))
+    return {"token": make_token(user), "user": public_user(user)}
+
+
+def action_login(data: Dict[str, Any]) -> Dict[str, Any]:
+    user = get_user_by_email(data.get("email", ""))
+    if not user or not verify_password(data.get("password", ""), user["salt"], user["pw"]):
+        raise AuthError("Incorrect email or password.")
+    return {"token": make_token(user), "user": public_user(user)}
+
+
+def action_me(data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = require_user(data)
+    user = get_user_by_email(payload["email"])
+    if not user:
+        raise AuthError("Session expired. Please sign in again.")
+    return {"user": public_user(user)}
+
+
+def action_admin_users(data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = require_user(data)
+    if payload.get("role") != "admin":
+        raise AuthError("Admin access required.", status=403)
+
+    rows = []
+    for email in set_members("users:all"):
+        user = get_user_by_email(email)
+        if not user:
+            continue
+        usage = _get_json(_usage_key(user["id"])) or _blank_usage()
+        answered = usage.get("answered", 0)
+        rows.append({
+            **public_user(user),
+            "interviews": usage.get("interviews", 0),
+            "answered": answered,
+            "skipped": usage.get("skipped", 0),
+            "avg_score": round(usage["score_sum"] / answered, 2) if answered else 0,
+            "highest_level": usage.get("highest_level", "easy"),
+            "topics": usage.get("topics", []),
+            "last_active": usage.get("last_active", 0),
+        })
+    rows.sort(key=lambda r: r["last_active"], reverse=True)
+    return {"users": rows, "count": len(rows)}
+
+
+# =========================
 # Actions (stateless)
 # =========================
 def action_start(topic: str) -> Dict[str, Any]:
@@ -290,6 +607,20 @@ Feedback: Brief feedback here.
     }
 
 
+def action_skip(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Swap the current question for a fresh one at the same level.
+
+    A skip is not an answer: it doesn't count toward the 5-per-level tally, the
+    level score, or the running average. The candidate simply gets a different
+    question at the level they're already on.
+    """
+    level = LEVELS[state["level_index"]]
+    next_q = get_question(state["topic"], state["asked"], level)
+    state["question"] = next_q
+    state["asked"].append(next_q)
+    return {"question": next_q, "level": level, "state": state}
+
+
 def action_end(state: Dict[str, Any]) -> Dict[str, Any]:
     total_questions = state["answer_count"]
     avg_score = state["total_score"] / total_questions if total_questions else 0
@@ -319,10 +650,33 @@ Assessment:"""
 
 def dispatch(data: Dict[str, Any]) -> Dict[str, Any]:
     action = data.get("action")
+
+    # Public auth actions.
+    if action == "register":
+        return action_register(data)
+    if action == "login":
+        return action_login(data)
+    if action == "me":
+        return action_me(data)
+    if action == "admin_users":
+        return action_admin_users(data)
+
+    # Everything below is the interview itself and requires a signed-in user.
+    # Usage is attributed to the token's user for the admin dashboard.
+    uid = require_user(data)["uid"]
     if action == "start":
-        return action_start(data.get("topic", "Python"))
+        topic = data.get("topic", "Python")
+        result = action_start(topic)
+        record_usage(uid, interviews=1, topic=topic)
+        return result
     if action == "answer":
-        return action_answer(data.get("answer", ""), data["state"])
+        result = action_answer(data.get("answer", ""), data["state"])
+        record_usage(uid, answered=1, score=result["score"], level=result["level"])
+        return result
+    if action == "skip":
+        result = action_skip(data["state"])
+        record_usage(uid, skipped=1)
+        return result
     if action == "end":
         return action_end(data["state"])
     return {"error": f"Unknown action: {action!r}"}
@@ -343,6 +697,10 @@ class handler(BaseHTTPRequestHandler):
             raw = self.rfile.read(length) if length else b"{}"
             data = json.loads(raw or b"{}")
             self._send(200, dispatch(data))
+        except AuthError as exc:  # 401 sign-in required / 403 admin only
+            self._send(exc.status, {"error": str(exc)})
+        except ValueError as exc:  # bad input (registration validation, bad JSON)
+            self._send(400, {"error": str(exc)})
         except Exception as exc:  # surface the message to the client for debugging
             self._send(500, {"error": str(exc)})
 
@@ -374,4 +732,9 @@ class handler(BaseHTTPRequestHandler):
                 "gemini": bool(os.getenv("GEMINI_API_KEY")),
             },
             "model": MODEL,
+            "auth": {
+                "store": "upstash-kv" if _KV_ON else "local-json (not durable on Vercel)",
+                "secret_configured": bool(os.getenv("AUTH_SECRET")),
+                "admin_email_configured": bool(os.getenv("ADMIN_EMAIL")),
+            },
         })

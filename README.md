@@ -317,6 +317,29 @@ Response:
 
 </details>
 
+### Accounts & admin
+
+Interviews require a signed-in account. The browser posts to `POST /api/interview`
+with an `action`:
+
+| Action | Body | Notes |
+|--------|------|-------|
+| `register` | `{email, password, name}` | Returns `{token, user}`. Password ≥ 6 chars. |
+| `login` | `{email, password}` | Returns `{token, user}`. |
+| `me` | `{token}` | Validates a token; returns the current `user`. |
+| `admin_users` | `{token}` | **Admin only.** Returns every user with their usage. |
+| `start` / `answer` / `skip` / `end` | `{…, token}` | Require a valid `token`; usage is recorded per user. |
+
+**Who is the admin?** The email in `ADMIN_EMAIL` is always admin. If that's unset,
+the **first person to register** becomes the admin. Admins get a 👑 **Admin** button
+in the header that opens a *Users & usage* table (interviews, answers, skips, average
+score, highest level reached, topics practiced, last active).
+
+Auth is stdlib-only: PBKDF2 password hashing + HMAC-signed session tokens. Users and
+usage live in a KV store — set `KV_REST_API_URL` / `KV_REST_API_TOKEN` (Vercel KV /
+Upstash) in production, or rely on the local-JSON fallback for dev. See
+[`.env.example`](.env.example) for all auth variables.
+
 ---
 
 ## 🔧 MCP Server
