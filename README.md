@@ -22,9 +22,11 @@ pinned: false
 
 *Practice technical interviews with adaptive difficulty, real-time voice interaction, and intelligent feedback powered by LLMs and RAG.*
 
+### 🚀 [**Try it live → ai-interview-coach-taupe-ten.vercel.app**](https://ai-interview-coach-taupe-ten.vercel.app)
+
 ---
 
-[Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Usage](#-usage) • [API](#-api-reference)
+[Live Demo](https://ai-interview-coach-taupe-ten.vercel.app) • [Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Usage](#-usage) • [API](#-api-reference)
 
 </div>
 
